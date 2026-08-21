@@ -14,8 +14,10 @@
  *   3. version 为 semver
  *   4. copyright.status ∈ {public_domain, cc, licensed}
  *   5. zip 文件存在、命名 <id>-<version>.zip、≤ 50MB
- *   6. zip 可解压；解压前预扫描条目名（拒绝 ..、绝对路径、反斜杠、符号链接）——
- *      系统 unzip 整体解压后再检查无法防写入型穿越，必须预扫描
+ *   6. zip 可解压；解压前预扫描条目名：反斜杠规范化为 /（Windows 打包器产物）、检测并
+ *      剥离单层顶层包装前缀（对齐 extractor.rs 的 detect_wrapping_prefix），拒绝 ..、
+ *      绝对路径、符号链接（系统 unzip 整体解压后再检查无法防写入型穿越，必须预扫描）；
+ *      解压用系统 python3 标准库 zipfile（Linux unzip 不把反斜杠当分隔符，无法正确落盘）
  *   7. 解压后 SKILL.md 存在；frontmatter 的 id（若存在，须匹配 manifest.id 或 name 之一）与
  *      name 与 manifest 一致（不比对 version——SKILL.md 的 version 是知识图谱 schema 版本，固定 "2.0"）
  *   8. entities.json / relations.json（根级或 knowledge_graph/ 子目录）存在且为合法 JSON（v2.0 包装或裸数组）
@@ -39,6 +41,58 @@ const MAX_JSON_BYTES = 50 * 1024 * 1024;       // 单 JSON ≤ 50MB
 const COPYRIGHT_STATUSES = new Set(["public_domain", "cc", "licensed"]);
 const SEMVER_RE = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const ID_RE = /^[a-z0-9](?:[a-z0-9-]{1,62}[a-z0-9])?$/; // 3-64 字符，首尾非 "-"
+
+/**
+ * 安全解压脚本（系统 python3 标准库 zipfile，零 npm 依赖）：
+ *  - 反斜杠规范化为 /（Windows 打包器产物，对齐 extractor.rs）
+ *  - 跳过 __MACOSX / 隐藏文件条目（extractor.rs 同款过滤）
+ *  - 安全拒绝：绝对路径（/ 或盘符开头）、.. 路径段（双保险，Node 预扫描已查一次）
+ *  - 检测单层顶层包装前缀（detect_wrapping_prefix 移植）：仅当所有条目共享
+ *    同一顶层目录时剥离（如 "pkg/SKILL.md" → "SKILL.md"）
+ *  - 符号链接条目按普通文件内容落盘，不创建链接（与 Rust zip crate 行为一致）
+ */
+const PY_EXTRACT = String.raw`
+import sys, os, zipfile
+src, dst = sys.argv[1], sys.argv[2]
+os.makedirs(dst, exist_ok=True)
+def clean(raw):
+    n = raw.replace('\\', '/')
+    if '__MACOSX' in n or n.startswith('.') or '/.' in n:
+        return None
+    return n
+with zipfile.ZipFile(src) as z:
+    infos = z.infolist()
+    norm = []
+    for it in infos:
+        n = clean(it.filename)
+        if n is None:
+            continue
+        if n.startswith('/') or n.startswith('C:') or n.startswith('c:'):
+            sys.exit('absolute path entry: ' + n)
+        if any(seg == '..' for seg in n.split('/')):
+            sys.exit('path traversal entry: ' + n)
+        norm.append(n)
+    # detect_wrapping_prefix：所有条目在同一顶层目录时才剥离
+    prefix = None
+    if norm and all('/' in n for n in norm):
+        firsts = [n.split('/')[0] for n in norm]
+        f0 = firsts[0]
+        if f0 and '.' not in f0 and all(f == f0 for f in firsts):
+            prefix = f0 + '/'
+    for it in infos:
+        n = clean(it.filename)
+        if n is None:
+            continue
+        if prefix and n.startswith(prefix):
+            n = n[len(prefix):]
+        out = os.path.join(dst, n)
+        if it.is_dir():
+            os.makedirs(out, exist_ok=True)
+        else:
+            os.makedirs(os.path.dirname(out), exist_ok=True)
+            with open(out, 'wb') as f:
+                f.write(z.read(it.filename))
+`;
 
 const errors = [];
 const warnings = [];
@@ -118,6 +172,13 @@ function parseFrontmatter(text) {
         i++;
       }
       out[key] = val.replace(/\\"/g, '"');
+      i++;
+      continue;
+    }
+    // 裸值（无引号）：`key: value`，如 `name: hoang-bayesian-games`
+    const bare = /^([a-zA-Z_]+):\s*(\S.*)$/.exec(line.trim());
+    if (bare) {
+      out[bare[1]] = bare[2].trim();
       i++;
       continue;
     }
@@ -212,22 +273,27 @@ function validateZip(dir, manifest) {
   }
 
   for (const entry of entries) {
-    if (entry.split("/").includes("..")) {
+    // 反斜杠是 Windows 打包器的路径分隔符，规范化为 / 后再检查（对齐 extractor.rs）
+    const norm = entry.replace(/\\/g, "/");
+    if (norm.split("/").includes("..")) {
       fail(`zip 条目含路径穿越（..）：${entry}`);
       return;
     }
-    if (entry.startsWith("/") || entry.includes("\\")) {
-      fail(`zip 条目含绝对路径或反斜杠：${entry}`);
+    if (norm.startsWith("/") || /^[A-Za-z]:\//.test(norm)) {
+      fail(`zip 条目含绝对路径：${entry}`);
       return;
     }
   }
 
-  // 解压到临时目录
+  // 解压到临时目录（python3 zipfile：反斜杠规范化 + 剥离单层顶层包装前缀 + 安全落盘）
   const tmp = mkdtempSync(join(tmpdir(), "skillpkg-"));
   try {
-    execFileSync("unzip", ["-q", "-o", zipFile, "-d", tmp]);
+    execFileSync("python3", ["-c", PY_EXTRACT, zipFile, tmp], {
+      stdio: ["ignore", "ignore", "pipe"],
+    });
   } catch (e) {
-    fail(`zip 解压失败：${e.message.trim()}`);
+    const msg = (e.stderr || e.message).toString().trim();
+    fail(`zip 解压失败：${msg}`);
     return;
   }
 

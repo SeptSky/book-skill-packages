@@ -89,11 +89,15 @@ packages/
   - `entities.json` / `relations.json` — 位于 zip **根目录或 `knowledge_graph/` 子目录**（两代导出格式均兼容）；v2.0 包装或裸数组
   - `chapters/chapter_N.md`、`original_chapters/chapter_N.md`
   - 编译产物可选（`core.md`、`chapter_index.md`、`glossary.md`、`patterns.md`、`cheatsheet.md`）
+- 条目名兼容性（与桌面端 `extractor.rs` 行为一致）：
+  - 路径分隔符可为 `/` 或 Windows 反斜杠 `\`（打包器产物），校验器统一规范化为 `/` 处理
+  - 允许单层顶层包装目录（如 `hoang-bayesian-games/SKILL.md`）——仅当**所有条目**共享同一顶层目录时剥离该前缀（对齐 `detect_wrapping_prefix`）；根级文件与多顶层目录并存时（`chapters/`+`original_chapters/`+根级 `SKILL.md`）不剥离
+  - `__MACOSX/` 与隐藏文件条目被跳过（不参与校验与解压）
 - 校验项（CI 自动执行，见 `scripts/validate.mjs`）：
   - manifest 合法、必填字段齐全
   - `id` slug 格式、`version` semver
   - `copyright.status` ∈ 枚举
-  - zip 可解压、≤50MB、无路径穿越（预扫描拒绝 `..`/绝对路径/反斜杠/符号链接）
+  - zip 可解压、≤50MB、无路径穿越（预扫描：反斜杠规范化为 `/` 后拒绝 `..`/绝对路径/符号链接；单层顶层包装前缀在解压时剥离）
   - `SKILL.md` 的 `id`（若存在，匹配 `manifest.id` 或 `name` 之一）、`name` 与 manifest 一致（**不比对 `version`**）
   - `entities.json`/`relations.json`（根级或 `knowledge_graph/` 子目录）为合法 JSON
 

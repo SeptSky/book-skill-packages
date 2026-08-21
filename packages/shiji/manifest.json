@@ -17,5 +17,10 @@
     "status": "public_domain",
     "notice": "原著为公版作品"
   },
-  "zip": "shiji-1.0.0.zip"
+  "zip": "shiji-1.0.0.zip",
+  "keywords": [
+    "纪传体",
+    "史书",
+    "史记"
+  ]
 }

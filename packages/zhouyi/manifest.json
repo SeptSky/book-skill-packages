@@ -17,5 +17,10 @@
     "status": "public_domain",
     "notice": "原著为公版作品"
   },
-  "zip": "zhouyi-1.0.0.zip"
+  "zip": "zhouyi-1.0.0.zip",
+  "keywords": [
+    "易学",
+    "哲学",
+    "周易"
+  ]
 }

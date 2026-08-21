@@ -17,5 +17,10 @@
     "status": "public_domain",
     "notice": "原著为公版作品"
   },
-  "zip": "zizhi-tongjian-1.0.0.zip"
+  "zip": "zizhi-tongjian-1.0.0.zip",
+  "keywords": [
+    "编年史",
+    "司马光",
+    "资治通鉴"
+  ]
 }

@@ -1,0 +1,93 @@
+name: release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/**"
+
+permissions:
+  contents: write
+
+# 并发 merge 两个 PR 时串行化发布，避免 index.json 写回互相覆盖（见计划 Risks）
+concurrency:
+  group: skill-package-release
+  cancel-in-progress: false
+
+env:
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 列出变更的 manifest
+        run: |
+          git diff --name-only "${{ github.event.before }}" HEAD -- packages \
+            | grep '/manifest.json$' > /tmp/changed-manifests.txt || true
+          echo "变更 manifest："
+          cat /tmp/changed-manifests.txt
+
+      - name: 发布新包（幂等）
+        run: |
+          set -u
+          while IFS= read -r mf; do
+            [ -z "$mf" ] && continue
+            id=$(node -e "const m=require('./$mf');console.log(m.id)")
+            version=$(node -e "const m=require('./$mf');console.log(m.version)")
+            zip=$(node -e "const m=require('./$mf');console.log(m.zip)")
+            tag="${id}@${version}"
+            if gh release view "$tag" >/dev/null 2>&1; then
+              echo "[SKIP] $tag 已存在（幂等跳过）"
+              continue
+            fi
+            # KTD2：关联 merge commit -> PR（取 head SHA 与 fork 仓名）
+            pr=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" \
+              --jq '.[0] // empty' 2>/dev/null || true)
+            if [ -z "$pr" ] || [ "$pr" = "null" ] \
+               || [ -z "$(printf '%s' "$pr" | jq -r '.head.sha // empty')" ]; then
+              # 回退：squash commit message 默认携带 (#NNN)，据此取 PR 的 head.sha
+              n=$(git log -1 --format=%s | grep -oE '\(#[0-9]+\)' | grep -oE '[0-9]+' | head -1 || true)
+              if [ -n "$n" ]; then
+                echo "[WARN] commits/{sha}/pulls 未返回关联 PR，回退解析 (#$n)"
+                pr=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${n}" 2>/dev/null || true)
+              fi
+            fi
+            head_sha=$(printf '%s' "$pr" | jq -r '.head.sha // empty')
+            head_repo=$(printf '%s' "$pr" | jq -r '.head.repo.full_name // empty')
+            if [ -z "$head_sha" ] || [ -z "$head_repo" ]; then
+              echo "[WARN] 无法关联 PR（无 head.sha/head.repo.full_name），跳过 $tag"
+              echo "       —— 发布链只支持 PR 合并路径；直接 push packages/** 应被分支保护禁止（U1）"
+              continue
+            fi
+            # zip 为 PR 暂态文件（merge 后不在 main），从 fork 仓 head SHA 下载
+            if ! curl -fsSL "https://raw.githubusercontent.com/${head_repo}/${head_sha}/packages/${id}/${zip}" \
+              -o "${zip}"; then
+              echo "[FAIL] 下载 zip 失败: packages/${id}/${zip}（${head_repo}@${head_sha}）"
+              exit 1
+            fi
+            notes=$(node -e "const m=require('./$mf');console.log('名称: '+(m.title?.zh||m.name));console.log('版本: '+m.version);console.log('语言: '+(m.language||''));console.log('版权: '+(m.copyright?.status||'')+' - '+(m.copyright?.notice||''))")
+            gh release create "$tag" "$zip" \
+              --title "skill-package: ${id}@${version}" --notes "$notes"
+            echo "[OK] $tag 已发布"
+            rm -f "$zip"
+          done < /tmp/changed-manifests.txt
+
+      - name: 写回 index.json
+        run: |
+          node scripts/build-index.mjs
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.json
+          if git diff --cached --quiet; then
+            echo "index.json 无变化，无需写回"
+          else
+            git commit -m "chore(index): 更新技能包索引"
+            # GITHUB_TOKEN push 不触发新 workflow（GitHub 防循环特性）；本写回依赖
+            # U1 分支保护 bypass list 中的 github-actions[bot]（见计划 Risks）
+            git push
+          fi

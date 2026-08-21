@@ -1,0 +1,38 @@
+name: validate
+
+on:
+  pull_request:
+    paths:
+      - "packages/**"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      # 校验脚本取自 base（main）版本，而非 PR 头——否则贡献者可同时修改
+      # scripts/validate.mjs 使其放行自己的坏包（校验器自篡改，见计划 Risks）
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+      - uses: actions/checkout@v4
+
+      - name: 校验变更的包
+        run: |
+          base_sha="${{ github.event.pull_request.base.sha }}"
+          head_sha="${{ github.event.pull_request.head.sha }}"
+          dirs=$(git diff --name-only "${base_sha}...${head_sha}" -- packages | awk -F/ 'NF>=2 {print $2}' | sort -u)
+          if [ -z "$dirs" ]; then
+            echo "无 packages/** 内容变更，跳过"
+            exit 0
+          fi
+          failed=0
+          for d in $dirs; do
+            [ -f "packages/$d/manifest.json" ] || continue
+            echo "==> 校验 packages/$d"
+            node base/scripts/validate.mjs "packages/$d" || failed=1
+          done
+          exit $failed

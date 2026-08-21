@@ -1,0 +1,10 @@
+# 依赖与日志
+node_modules/
+*.log
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 本地临时文件（解压/测试目录）
+.tmp/

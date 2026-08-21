@@ -17,5 +17,10 @@
     "status": "public_domain",
     "notice": "原著为公版作品"
   },
-  "zip": "sanguo-yanyi-1.0.0.zip"
+  "zip": "sanguo-yanyi-1.0.0.zip",
+  "keywords": [
+    "四大名著",
+    "历史演义",
+    "三国演义"
+  ]
 }

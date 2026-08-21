@@ -17,5 +17,10 @@
     "status": "public_domain",
     "notice": "原著为公版作品"
   },
-  "zip": "shuihu-zhuan-1.0.0.zip"
+  "zip": "shuihu-zhuan-1.0.0.zip",
+  "keywords": [
+    "四大名著",
+    "古典小说",
+    "水浒传"
+  ]
 }

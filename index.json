@@ -10,7 +10,7 @@
       "en": "Distilled skill package of the Tao Te Ching"
     },
     "currentVersion": "1.0.0",
-    "downloadUrl": "https://github.com/{owner}/{repo}/releases/download/daodejing@1.0.0/daodejing-1.0.0.zip",
+    "downloadUrl": "https://github.com/SeptSky/book-skill-packages/releases/download/daodejing@1.0.0/daodejing-1.0.0.zip",
     "language": "zh"
   },
   {
@@ -24,7 +24,7 @@
       "en": "A knowledge-graph guided tour of Dream of the Red Chamber."
     },
     "currentVersion": "1.0.0",
-    "downloadUrl": "https://github.com/{owner}/{repo}/releases/download/hongloumeng@1.0.0/hongloumeng-1.0.0.zip",
+    "downloadUrl": "https://github.com/SeptSky/book-skill-packages/releases/download/hongloumeng@1.0.0/hongloumeng-1.0.0.zip",
     "language": "zh"
   },
   {
@@ -38,7 +38,7 @@
       "en": "A knowledge-graph guided tour of Romance of the Three Kingdoms."
     },
     "currentVersion": "1.0.0",
-    "downloadUrl": "https://github.com/{owner}/{repo}/releases/download/sanguo-yanyi@1.0.0/sanguo-yanyi-1.0.0.zip",
+    "downloadUrl": "https://github.com/SeptSky/book-skill-packages/releases/download/sanguo-yanyi@1.0.0/sanguo-yanyi-1.0.0.zip",
     "language": "zh"
   },
   {
@@ -52,7 +52,7 @@
       "en": "A knowledge-graph guided tour of Records of the Grand Historian."
     },
     "currentVersion": "1.0.0",
-    "downloadUrl": "https://github.com/{owner}/{repo}/releases/download/shiji@1.0.0/shiji-1.0.0.zip",
+    "downloadUrl": "https://github.com/SeptSky/book-skill-packages/releases/download/shiji@1.0.0/shiji-1.0.0.zip",
     "language": "zh"
   },
   {
@@ -66,7 +66,7 @@
       "en": "A knowledge-graph guided tour of Water Margin."
     },
     "currentVersion": "1.0.0",
-    "downloadUrl": "https://github.com/{owner}/{repo}/releases/download/shuihu-zhuan@1.0.0/shuihu-zhuan-1.0.0.zip",
+    "downloadUrl": "https://github.com/SeptSky/book-skill-packages/releases/download/shuihu-zhuan@1.0.0/shuihu-zhuan-1.0.0.zip",
     "language": "zh"
   },
   {
@@ -80,7 +80,7 @@
       "en": "A knowledge-graph guided tour of Journey to the West."
     },
     "currentVersion": "1.0.0",
-    "downloadUrl": "https://github.com/{owner}/{repo}/releases/download/xiyouji@1.0.0/xiyouji-1.0.0.zip",
+    "downloadUrl": "https://github.com/SeptSky/book-skill-packages/releases/download/xiyouji@1.0.0/xiyouji-1.0.0.zip",
     "language": "zh"
   },
   {
@@ -94,7 +94,7 @@
       "en": "A knowledge-graph guided tour of the I Ching."
     },
     "currentVersion": "1.0.0",
-    "downloadUrl": "https://github.com/{owner}/{repo}/releases/download/zhouyi@1.0.0/zhouyi-1.0.0.zip",
+    "downloadUrl": "https://github.com/SeptSky/book-skill-packages/releases/download/zhouyi@1.0.0/zhouyi-1.0.0.zip",
     "language": "zh"
   },
   {
@@ -108,7 +108,7 @@
       "en": "A knowledge-graph guided tour of the Comprehensive Mirror in Aid of Governance."
     },
     "currentVersion": "1.0.0",
-    "downloadUrl": "https://github.com/{owner}/{repo}/releases/download/zizhi-tongjian@1.0.0/zizhi-tongjian-1.0.0.zip",
+    "downloadUrl": "https://github.com/SeptSky/book-skill-packages/releases/download/zizhi-tongjian@1.0.0/zizhi-tongjian-1.0.0.zip",
     "language": "zh"
   }
 ]

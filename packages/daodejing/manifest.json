@@ -1,0 +1,18 @@
+{
+  "id": "daodejing",
+  "version": "1.0.0",
+  "name": "道德经",
+  "title": { "zh": "道德经", "en": "Tao Te Ching" },
+  "description": {
+    "zh": "道德经蒸馏技能包",
+    "en": "Distilled skill package of the Tao Te Ching"
+  },
+  "author": "老子",
+  "language": "zh",
+  "source": "公版书（老子《道德经》，约公元前 4 世纪成书）",
+  "copyright": {
+    "status": "public_domain",
+    "notice": "原著为公版作品"
+  },
+  "zip": "daodejing-1.0.0.zip"
+}

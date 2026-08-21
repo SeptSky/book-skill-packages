@@ -16,9 +16,9 @@
  *   5. zip 文件存在、命名 <id>-<version>.zip、≤ 50MB
  *   6. zip 可解压；解压前预扫描条目名（拒绝 ..、绝对路径、反斜杠、符号链接）——
  *      系统 unzip 整体解压后再检查无法防写入型穿越，必须预扫描
- *   7. 解压后 SKILL.md 存在，frontmatter 的 id/name/description 与 manifest 一致
- *      （不比对 version——SKILL.md 的 version 是知识图谱 schema 版本，固定 "2.0"）
- *   8. entities.json / relations.json 存在且为合法 JSON（v2.0 包装或裸数组）
+ *   7. 解压后 SKILL.md 存在；frontmatter 的 id（若存在，须匹配 manifest.id 或 name 之一）与
+ *      name 与 manifest 一致（不比对 version——SKILL.md 的 version 是知识图谱 schema 版本，固定 "2.0"）
+ *   8. entities.json / relations.json（根级或 knowledge_graph/ 子目录）存在且为合法 JSON（v2.0 包装或裸数组）
  *   9. 资源上限：解压后总量 ≤ 200MB、单 JSON ≤ 50MB（防 zip 炸弹）
  *   10. 解压产物中无符号链接
  */
@@ -66,16 +66,62 @@ function tryReadJson(file, label) {
   }
 }
 
-/** 轻量解析 SKILL.md frontmatter（仅支持 `key: "value"` 行） */
+/** 找到未转义闭合引号的位置；无则返回 -1 */
+function findClosingQuote(s) {
+  let escaped = false;
+  for (let j = 0; j < s.length; j++) {
+    const ch = s[j];
+    if (escaped) { escaped = false; continue; }
+    if (ch === "\\") { escaped = true; continue; }
+    if (ch === '"') return j;
+  }
+  return -1;
+}
+
+/** 轻量解析 SKILL.md frontmatter（支持单行与多行双引号字符串值） */
 function parseFrontmatter(text) {
   if (!text.startsWith("---")) return {};
   const end = text.indexOf("\n---", 3);
   if (end === -1) return {};
   const block = text.slice(3, end);
+  const lines = block.split("\n");
   const out = {};
-  for (const line of block.split("\n")) {
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
     const m = /^([a-zA-Z_]+):\s*"((?:[^"\\]|\\.)*)"\s*$/.exec(line.trim());
-    if (m) out[m[1]] = m[2].replace(/\\"/g, '"');
+    if (m) {
+      out[m[1]] = m[2].replace(/\\"/g, '"');
+      i++;
+      continue;
+    }
+    // 多行字符串值：`key: "..."` 跨行直至未转义闭合引号（真实导出器格式）
+    const start = /^([a-zA-Z_]+):\s*"/.exec(line.trim());
+    if (start) {
+      const key = start[1];
+      let val = line.slice(line.indexOf('"') + 1);
+      const closed = findClosingQuote(val);
+      if (closed >= 0) {
+        out[key] = val.slice(0, closed).replace(/\\"/g, '"');
+        i++;
+        continue;
+      }
+      i++;
+      while (i < lines.length) {
+        const l = lines[i];
+        const c = findClosingQuote(l);
+        if (c >= 0) {
+          val += "\n" + l.slice(0, c);
+          break;
+        }
+        val += "\n" + l;
+        i++;
+      }
+      out[key] = val.replace(/\\"/g, '"');
+      i++;
+      continue;
+    }
+    i++;
   }
   return out;
 }
@@ -221,8 +267,10 @@ function validateZip(dir, manifest) {
     return;
   }
   const fm = parseFrontmatter(readFileSync(skillFile, "utf8"));
-  if (fm.id !== manifest.id) {
-    fail(`SKILL.md frontmatter 的 id（${fm.id}）与 manifest（${manifest.id}）不一致`);
+  // 导出器写入的 frontmatter id 是"包内 id"（常为中文书名），与 manifest 的仓库 slug 概念不同；
+  // 因此仅当 id 存在时校验，且匹配 manifest.id 或 name 之一即可（防错包同时兼容真实导出格式）。
+  if (fm.id !== undefined && ![manifest.id, manifest.name].includes(fm.id)) {
+    fail(`SKILL.md frontmatter 的 id（${fm.id}）与 manifest（id=${manifest.id}, name=${manifest.name}）均不一致`);
   }
   if (fm.name !== manifest.name) {
     fail(`SKILL.md frontmatter 的 name（${fm.name}）与 manifest（${manifest.name}）不一致`);
@@ -233,16 +281,24 @@ function validateZip(dir, manifest) {
   }
   // 不比对 version：SKILL.md 的 version 是知识图谱 schema 版本（固定 "2.0"），与包版本无关
 
-  // entities.json / relations.json
-  const entities = tryReadJson(join(tmp, "entities.json"), "entities.json");
-  if (entities !== null) {
-    const arr = Array.isArray(entities) ? entities : entities.entities;
-    if (!Array.isArray(arr)) fail("entities.json 须为裸数组或 { entities: [...] }");
-  }
-  const relations = tryReadJson(join(tmp, "relations.json"), "relations.json");
-  if (relations !== null) {
-    const arr = Array.isArray(relations) ? relations : relations.relations;
-    if (!Array.isArray(arr)) fail("relations.json 须为裸数组或 { relations: [...] }");
+  // entities.json / relations.json（兼容根级与 knowledge_graph/ 子目录两代导出格式）
+  const findJson = (name) => {
+    const root = join(tmp, name);
+    if (existsSync(root)) return root;
+    const kg = join(tmp, "knowledge_graph", name);
+    return existsSync(kg) ? kg : null;
+  };
+  for (const [name, key] of [["entities.json", "entities"], ["relations.json", "relations"]]) {
+    const file = findJson(name);
+    if (!file) {
+      fail(`zip 缺少 ${name}（根级或 knowledge_graph/ 子目录）`);
+      continue;
+    }
+    const data = tryReadJson(file, name);
+    if (data !== null) {
+      const arr = Array.isArray(data) ? data : data[key];
+      if (!Array.isArray(arr)) fail(`${name} 须为裸数组或 { ${key}: [...] }`);
+    }
   }
 
   if (errors.length === 0) warn(`解压 ${entries.length} 个条目，共 ${(total / 1024 / 1024).toFixed(1)}MB`);

@@ -21,7 +21,7 @@ packages/
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| `id` | string | 是 | 包 ID。小写 slug，仅允许 `[a-z0-9-]`，首尾不得为 `-`，长度 3-64 |
+| `id` | string | 是 | 包 ID（仓库 slug）。小写 slug，仅允许 `[a-z0-9-]`，首尾不得为 `-`，长度 3-64。注意：`SKILL.md` frontmatter 的 `id` 是**包内 id**（导出器常写中文书名），两者概念不同、不必相同 |
 | `version` | string | 是 | 包版本，semver（`MAJOR.MINOR.PATCH`） |
 | `name` | string | 是 | 包名（原语名称，与 `SKILL.md` frontmatter 的 `name` 一致） |
 | `title` | object | 是 | `{"zh": "中文标题", "en": "English title"}`，两语言均必填 |
@@ -85,8 +85,8 @@ packages/
 
 - zip 为 PR 暂态文件：随 PR 提交，发布后由工作流清理，**不长期进入仓库**（保持仓库轻量）。
 - zip 内部结构（AI Reader X 导出格式）：
-  - `SKILL.md` — frontmatter 含 `id`、`name`、`description`、`author`（可选）、`version`（固定 `"2.0"`，知识图谱 schema 版本，**与 manifest.version 无关**）
-  - `entities.json` / `relations.json` — v2.0 包装或裸数组
+  - `SKILL.md` — frontmatter 含 `id`、`name`、`description`、`author`（可选）、`version`（固定 `"2.0"`，知识图谱 schema 版本，**与 manifest.version 无关**）。`id` 为包内 id（常为中文书名），存在时须与 `manifest.id` 或 `manifest.name` 之一一致；`name` 须与 `manifest.name` 一致
+  - `entities.json` / `relations.json` — 位于 zip **根目录或 `knowledge_graph/` 子目录**（两代导出格式均兼容）；v2.0 包装或裸数组
   - `chapters/chapter_N.md`、`original_chapters/chapter_N.md`
   - 编译产物可选（`core.md`、`chapter_index.md`、`glossary.md`、`patterns.md`、`cheatsheet.md`）
 - 校验项（CI 自动执行，见 `scripts/validate.mjs`）：
@@ -94,8 +94,8 @@ packages/
   - `id` slug 格式、`version` semver
   - `copyright.status` ∈ 枚举
   - zip 可解压、≤50MB、无路径穿越（预扫描拒绝 `..`/绝对路径/反斜杠/符号链接）
-  - `SKILL.md` 的 `id`/`name`/`description` 与 manifest 一致（**不比对 `version`**）
-  - `entities.json`/`relations.json` 为合法 JSON
+  - `SKILL.md` 的 `id`（若存在，匹配 `manifest.id` 或 `name` 之一）、`name` 与 manifest 一致（**不比对 `version`**）
+  - `entities.json`/`relations.json`（根级或 `knowledge_graph/` 子目录）为合法 JSON
 
 ## 5. 发布与 index.json
 
